@@ -6,6 +6,9 @@
 #include <opencv2/xfeatures2d.hpp>
 #include <boost/filesystem.hpp>
 
+namespace fs = boost::filesystem;
+
+
 void printMatDetails(cv::Mat mat, std::string desc="Matrix") {
   std::string typeString;
   int type = mat.type();
@@ -217,13 +220,14 @@ void computePhogImgdir(std::string& imgdir) {
     std::cout << "Descs computed: " << descs.size() << std::endl;
     
     std::string npz_file = "../data/images.npz";
-    int desc_length = descs[0].cols;
+    long unsigned int desc_length = descs[0].cols;
     std::filesystem::remove(npz_file);
 
     for (unsigned image_ind = 0; image_ind < filenames.size(); image_ind++) {
         std::vector<float> vec;
         descs[image_ind].row(0).copyTo(vec);
-        std::string key = std::filesystem::relative(filenames[image_ind], imgdir).generic_string();
+        fs::path path(filenames[image_ind]);
+        std::string key = path.lexically_relative(imgdir).string();
         cnpy::npz_save(npz_file, key, &vec[0], {desc_length}, "a");
     }
     

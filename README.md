@@ -11,6 +11,10 @@ Python Project dependencies (Poetry):
 - opencv-python
 
 C++ Project dependencies (CMake):
-- OpenCV
+- [OpenCV](https://opencv.org/)
+- [cnpy](https://github.com/saravanabalagi/cnpy) (for numpy ops)
+- [zlib](https://www.zlib.net/) (for npz compression)
+- [boost](https://www.boost.org/) (for reading files)
+- [OpenMP](https://www.openmp.org/) (for multiprocessing)
 
 As can be seen in the results, the implementation produces descriptors that are accurate upto 3 decimals. 

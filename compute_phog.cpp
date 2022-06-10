@@ -1,8 +1,10 @@
 #include <iostream>
 #include <fstream>
+#include <filesystem>
+#include"cnpy.h"
 #include <opencv2/opencv.hpp>
 #include <opencv2/xfeatures2d.hpp>
-
+#include <boost/filesystem.hpp>
 
 void printMatDetails(cv::Mat mat, std::string desc="Matrix") {
   std::string typeString;
@@ -169,9 +171,25 @@ void computePhog(const cv::Mat& image, cv::Mat& desc)
     desc = desc / sum;
 }
 
-int main() {
-    std::string img_filename = "../data/image_sample.jpg";
-    cv::Mat image = cv::imread(img_filename);
+void getFilenames(const std::string& directory, std::vector<std::string>& filenames) {
+    using namespace boost::filesystem;
+    filenames.clear();
+    path dir(directory);
+
+    // Retrieving, sorting and filtering filenames.
+    std::vector<path> entries;
+    copy(directory_iterator(dir), directory_iterator(), back_inserter(entries));
+    sort(entries.begin(), entries.end());
+    for (std::vector<path>::const_iterator it(entries.begin()); it != entries.end(); ++it) {
+        std::string ext = it->extension().c_str();
+        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        if (ext == ".png" || ext == ".jpg" || ext == ".ppm")
+            filenames.push_back(it->string());
+    }
+}
+
+void computePhogImg(std::string& imgfile) {
+    cv::Mat image = cv::imread(imgfile);
     printMatDetails(image, "Image");
     cv::Mat gdsc;
     computePhog(image, gdsc);
@@ -180,5 +198,45 @@ int main() {
     std::string filename = "../data/desc_cpp.txt";
     writeMatToFile(gdsc, filename);
     std::cout << "Successfully saved " << filename << std::endl;
+}
+
+void computePhogImgdir(std::string& imgdir) {
+    std::vector<cv::Mat> descs;
+    std::vector<std::string> filenames;
+    getFilenames(imgdir, filenames);
+    std::cout << "Files found: " << filenames.size() << std::endl;
+
+    #pragma omp parallel for
+    for (unsigned image_ind = 0; image_ind < filenames.size(); image_ind++) {
+        cv::Mat image = cv::imread(filenames[image_ind]);
+        cv::Mat desc;
+        computePhog(image, desc);
+        descs.push_back(desc);
+    }
+
+    std::cout << "Descs computed: " << descs.size() << std::endl;
+    
+    std::string npz_file = "../data/images.npz";
+    int desc_length = descs[0].cols;
+    std::filesystem::remove(npz_file);
+
+    for (unsigned image_ind = 0; image_ind < filenames.size(); image_ind++) {
+        std::vector<float> vec;
+        descs[image_ind].row(0).copyTo(vec);
+        std::string key = std::filesystem::relative(filenames[image_ind], imgdir).generic_string();
+        cnpy::npz_save(npz_file, key, &vec[0], {desc_length}, "a");
+    }
+    
+    std::cout << "Successfully saved " << npz_file << std::endl;
+}
+
+int main() {
+
+    std::string imgdir = "../data/images";
+    computePhogImgdir(imgdir);
+
+    std::string img_filename = "../data/image_sample.jpg";
+    computePhogImg(img_filename);
+
     return 0;
 }

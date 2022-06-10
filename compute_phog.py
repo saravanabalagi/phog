@@ -18,33 +18,23 @@ def getHistogram(edges, ors, mag, startX, startY, width, height, nbins):
     return hist
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('img_path', help='Path to img')
-    parser.add_argument('--nbins', type=int, default=60, help='Number of orientation bins')
-    parser.add_argument('--pyramid_height', type=int, default=2, help='Number of levels in the pyramid')
-    args = parser.parse_args()
-
-    nbins = args.nbins
+def compute_phog(img, nbins):
+    # Determine desc size
     desc_size = nbins + 4 * nbins + 16 * nbins
-
-    # Read image
-    img = cv2.imread(args.img_path)
-    printMatDetails(img, 'Image')
 
     # Convert the image to grayscale
     if img.ndim == 3:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    printMatDetails(img, 'Image BW')
+    # printMatDetails(img, 'Image BW')
 
     # Reduce noise, Apply Canny Edge Detector
     mean = np.mean(img)
     edges = cv2.blur(img, (3,3))
-    printMatDetails(edges, 'Image Blur')
+    # printMatDetails(edges, 'Image Blur')
     edges = cv2.Canny(edges, 0.66 * mean, 1.33 * mean)
 
-    printMatDetails(edges, 'edges')
+    # printMatDetails(edges, 'edges')
 
     # Computing the gradients.
     grad_x = cv2.Sobel(img, cv2.CV_32F, 1, 0, ksize=3)
@@ -53,20 +43,20 @@ def main():
     # Total Gradient (approximate)
     grad_m = np.abs(grad_x) + np.abs(grad_y)
 
-    printMatDetails(grad_x, 'grad_x')
-    printMatDetails(grad_y, 'grad_y')
-    printMatDetails(grad_m, 'grad_m')
+    # printMatDetails(grad_x, 'grad_x')
+    # printMatDetails(grad_y, 'grad_y')
+    # printMatDetails(grad_m, 'grad_m')
 
     # Computing orientations
     grad_o = cv2.phase(grad_x, grad_y, angleInDegrees=True)
 
-    printMatDetails(grad_o, 'grad_o')
+    # printMatDetails(grad_o, 'grad_o')
 
     # Quantizing orientations into bins.
     w = 360.0 / nbins
     grad_o = grad_o / w
 
-    printMatDetails(grad_o, 'grad_o')
+    # printMatDetails(grad_o, 'grad_o')
 
     # Creating the descriptor.
     desc = np.zeros(desc_size, dtype=np.float32)
@@ -95,6 +85,21 @@ def main():
     # Normalizing the histogram
     desc = desc / desc.sum()
 
+    return desc
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('img_path', help='Path to img')
+    parser.add_argument('--nbins', type=int, default=60, help='Number of orientation bins')
+    parser.add_argument('--pyramid_height', type=int, default=2, help='Number of levels in the pyramid')
+    args = parser.parse_args()
+
+    # Read image
+    img = cv2.imread(args.img_path)
+    printMatDetails(img, 'Image')
+
+    desc = compute_phog(img, nbins=args.nbins)
     printMatDetails(desc, 'Gdsc')
 
     filename = 'data/desc_py.txt'

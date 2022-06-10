@@ -67,7 +67,7 @@ void getHistogram(const cv::Mat& edges, const cv::Mat& ors, const cv::Mat& mag, 
     }
 }
 
-void describe(const cv::Mat& image, cv::Mat& desc)
+void computePhog(const cv::Mat& image, cv::Mat& desc)
 {
     int nbins = 60; // 20 bins as default, increased to 60
 	int desc_size = nbins + 4 * nbins + 16 * nbins;
@@ -77,7 +77,7 @@ void describe(const cv::Mat& image, cv::Mat& desc)
     {
         // Convert the image to grayscale
         cv::cvtColor(img, img, cv::COLOR_BGR2GRAY);
-        printMatDetails(img, "Image BW");
+        // printMatDetails(img, "Image BW");
     }
 
     // Mean and Standard Deviation
@@ -90,11 +90,11 @@ void describe(const cv::Mat& image, cv::Mat& desc)
     cv::Mat edges;
     // Reduce noise with a kernel 3x3
     cv::blur(img, edges, cv::Size(3,3));
-    printMatDetails(edges, "Image Blur");
+    // printMatDetails(edges, "Image Blur");
     // Canny detector
     cv::Canny(edges, edges, 0.66 * mean, 1.33 * mean);
 
-    printMatDetails(edges, "edges");
+    // printMatDetails(edges, "edges");
 
 
     //  Computing the gradients.
@@ -110,21 +110,21 @@ void describe(const cv::Mat& image, cv::Mat& desc)
     // Total Gradient (approximate)
     cv::Mat grad_m = cv::abs(grad_x) + cv::abs(grad_y);
 
-    printMatDetails(grad_x, "grad_x");
-    printMatDetails(grad_y, "grad_y");
-    printMatDetails(grad_m, "grad_m");
+    // printMatDetails(grad_x, "grad_x");
+    // printMatDetails(grad_y, "grad_y");
+    // printMatDetails(grad_m, "grad_m");
 
     // Computing orientations
     cv::Mat grad_o;
     cv::phase(grad_x, grad_y, grad_o, true);
 
-    printMatDetails(grad_o, "grad_o");
+    // printMatDetails(grad_o, "grad_o");
 
     // Quantizing orientations into bins.
     double w = 360.0 / (double)nbins;
     grad_o = grad_o / w;
 
-    printMatDetails(grad_o, "grad_o");
+    // printMatDetails(grad_o, "grad_o");
 
     // Creating the descriptor.
     desc = cv::Mat::zeros(1, nbins + 4 * nbins + 16 * nbins, CV_32F);
@@ -174,7 +174,7 @@ int main() {
     cv::Mat image = cv::imread(img_filename);
     printMatDetails(image, "Image");
     cv::Mat gdsc;
-    describe(image, gdsc);
+    computePhog(image, gdsc);
     printMatDetails(gdsc, "Gdsc");
 
     std::string filename = "../data/desc_cpp.txt";

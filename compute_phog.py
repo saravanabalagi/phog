@@ -2,12 +2,14 @@ import cv2
 import math
 import numpy as np
 import argparse
+from numba import jit
 
 
 def printMatDetails(m, desc="matrix"):
     print(f'{desc}: {m.dtype} {m.shape} [{m.min()}, {m.max()}], u: {m.mean()}, o: {m.std()}')
-    
 
+
+@jit
 def getHistogram(edges, ors, mag, startX, startY, width, height, nbins):
     hist = np.zeros(nbins)
     for x in range(startX, startX + height):

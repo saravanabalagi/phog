@@ -179,15 +179,15 @@ void getFilenames(const std::string& directory, std::vector<std::string>& filena
     filenames.clear();
     path dir(directory);
 
-    // Retrieving, sorting and filtering filenames.
-    std::vector<path> entries;
-    copy(directory_iterator(dir), directory_iterator(), back_inserter(entries));
-    sort(entries.begin(), entries.end());
-    for (std::vector<path>::const_iterator it(entries.begin()); it != entries.end(); ++it) {
-        std::string ext = it->extension().c_str();
-        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    if (!(fs::exists(directory) && fs::is_directory(directory))) {
+        throw std::invalid_argument(directory + " does not exist");
+        return;
+    }
+
+    for (auto const& entry: fs::recursive_directory_iterator(directory)) {
+        std::string ext = entry.path().extension().string();
         if (ext == ".png" || ext == ".jpg" || ext == ".ppm")
-            filenames.push_back(it->string());
+            filenames.push_back(entry.path().string());
     }
 }
 
@@ -234,13 +234,22 @@ void computePhogImgdir(std::string& imgdir) {
     std::cout << "Successfully saved " << npz_file << std::endl;
 }
 
-int main() {
+int main(int argc, char** argv) {
+    if (!(argc == 2 || argc == 3)) {
+        std::cout << "help: " << argv[0] << " (imgfile | -r imgdir)" << std::endl;
+        return 0;
+    }
 
-    std::string imgdir = "../data/images";
-    computePhogImgdir(imgdir);
-
-    std::string img_filename = "../data/image_sample.jpg";
-    computePhogImg(img_filename);
+    std::string arg1 = argv[1];
+    if (arg1 == "-r") {
+        std::string imgdir = argv[2];
+        std::cout << "Processing directory: " << imgdir  << std::endl;
+        computePhogImgdir(imgdir);
+    } else {
+        std::string imgfile = arg1;
+        std::cout << "Processing image: " << imgfile  << std::endl;
+        computePhogImg(imgfile);
+    }
 
     return 0;
 }

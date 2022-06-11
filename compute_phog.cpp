@@ -5,6 +5,7 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/xfeatures2d.hpp>
 #include <boost/filesystem.hpp>
+#include <argparse/argparse.hpp>
 
 namespace fs = boost::filesystem;
 
@@ -191,23 +192,23 @@ void getFilenames(const std::string& directory, std::vector<std::string>& filena
     }
 }
 
-void computePhogImg(std::string& imgfile) {
+void computePhogImg(std::string& imgfile, std::string& outfile) {
     cv::Mat image = cv::imread(imgfile);
     printMatDetails(image, "Image");
     cv::Mat gdsc;
     computePhog(image, gdsc);
     printMatDetails(gdsc, "Gdsc");
 
-    std::string filename = "../data/desc_cpp.txt";
-    writeMatToFile(gdsc, filename);
-    std::cout << "Successfully saved " << filename << std::endl;
+    writeMatToFile(gdsc, outfile);
+    std::cout << "Successfully saved " << outfile << std::endl;
 }
 
-void computePhogImgdir(std::string& imgdir) {
+void computePhogImgdir(std::string& imgdir, std::string& outfile) {
     std::vector<std::string> filenames;
     getFilenames(imgdir, filenames);
     std::cout << "Files found: " << filenames.size() << std::endl;
     cv::Mat descs = cv::Mat::zeros(filenames.size(), 1260, CV_32F);
+    int processed_count = 0;
 
     #pragma omp parallel for
     for (unsigned image_ind = 0; image_ind < filenames.size(); image_ind++) {
@@ -215,42 +216,62 @@ void computePhogImgdir(std::string& imgdir) {
         cv::Mat desc;
         computePhog(image, desc);
         desc.row(0).copyTo(descs.row(image_ind));
-        if (image_ind % 500 == 0)
-            std::cout << "Processed Image Idx: " << image_ind << std::endl;
+        processed_count++;
+        if (processed_count % 500 == 0)
+            std::cout << "Processed Count: " << processed_count << std::endl;
     }
 
     std::cout << "Descs computed: " << descs.size() << std::endl;
     
-    std::string npz_file = "../data/images.npz";
     long unsigned int desc_length = descs.cols;
-    std::filesystem::remove(npz_file);
+    std::filesystem::remove(outfile);
 
     for (unsigned image_ind = 0; image_ind < filenames.size(); image_ind++) {
         std::vector<float> vec;
         descs.row(image_ind).copyTo(vec);
         fs::path path(filenames[image_ind]);
         std::string key = path.lexically_relative(imgdir).string();
-        cnpy::npz_save(npz_file, key, &vec[0], {desc_length}, "a");
+        cnpy::npz_save(outfile, key, &vec[0], {desc_length}, "a");
     }
     
-    std::cout << "Successfully saved " << npz_file << std::endl;
+    std::cout << "Successfully saved " << outfile << std::endl;
 }
 
 int main(int argc, char** argv) {
-    if (!(argc == 2 || argc == 3)) {
-        std::cout << "help: " << argv[0] << " (imgfile | -r imgdir)" << std::endl;
-        return 0;
+    argparse::ArgumentParser program("phog");
+    program.add_argument("imgfile")
+        .help("path to img (or dir with -r)");
+    program.add_argument("-r", "--recursive")
+        .help("process images inside directory")
+        .default_value(false)
+        .implicit_value(true);
+    program.add_argument("-o", "--outfile")
+        .help("path to output file");
+
+    try {
+        program.parse_args(argc, argv);
+    }
+    catch (const std::runtime_error& err) {
+        std::cerr << err.what() << std::endl;
+        std::cerr << program;
+        std::exit(1);
     }
 
-    std::string arg1 = argv[1];
-    if (arg1 == "-r") {
-        std::string imgdir = argv[2];
-        std::cout << "Processing directory: " << imgdir  << std::endl;
-        computePhogImgdir(imgdir);
+    std::string imgfile = program.get<std::string>("imgfile");
+    if (program["--recursive"] == true) {
+        std::cout << "Processing directory: " << imgfile << std::endl;
+        std::string outfile = "../data/images.npz";
+        if (auto fn = program.present("-o"))
+            outfile = *fn;
+        std::cout << "Output will be stored at " << outfile << std::endl;
+        computePhogImgdir(imgfile, outfile);
     } else {
-        std::string imgfile = arg1;
         std::cout << "Processing image: " << imgfile  << std::endl;
-        computePhogImg(imgfile);
+        std::string outfile = "../data/desc_cpp.txt";
+        if (auto fn = program.present("-o"))
+            outfile = *fn;
+        std::cout << "Output will be stored at " << outfile << std::endl;
+        computePhogImg(imgfile, outfile);
     }
 
     return 0;

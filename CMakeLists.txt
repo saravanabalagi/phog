@@ -22,6 +22,7 @@ set(CNPY_ROOT "cnpy")
 find_package(CNPY REQUIRED)
 
 include_directories(
+    include
     ${CNPY_INCLUDE_DIRS}
     ${ZLIB_INCLUDE_DIRS}
     ${OpenCV_INCLUDE_DIRS}

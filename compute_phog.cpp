@@ -204,28 +204,30 @@ void computePhogImg(std::string& imgfile) {
 }
 
 void computePhogImgdir(std::string& imgdir) {
-    std::vector<cv::Mat> descs;
     std::vector<std::string> filenames;
     getFilenames(imgdir, filenames);
     std::cout << "Files found: " << filenames.size() << std::endl;
+    cv::Mat descs = cv::Mat::zeros(filenames.size(), 1260, CV_32F);
 
     #pragma omp parallel for
     for (unsigned image_ind = 0; image_ind < filenames.size(); image_ind++) {
         cv::Mat image = cv::imread(filenames[image_ind]);
         cv::Mat desc;
         computePhog(image, desc);
-        descs.push_back(desc);
+        desc.row(0).copyTo(descs.row(image_ind));
+        if (image_ind % 500 == 0)
+            std::cout << "Processed Image Idx: " << image_ind << std::endl;
     }
 
     std::cout << "Descs computed: " << descs.size() << std::endl;
     
     std::string npz_file = "../data/images.npz";
-    long unsigned int desc_length = descs[0].cols;
+    long unsigned int desc_length = descs.cols;
     std::filesystem::remove(npz_file);
 
     for (unsigned image_ind = 0; image_ind < filenames.size(); image_ind++) {
         std::vector<float> vec;
-        descs[image_ind].row(0).copyTo(vec);
+        descs.row(image_ind).copyTo(vec);
         fs::path path(filenames[image_ind]);
         std::string key = path.lexically_relative(imgdir).string();
         cnpy::npz_save(npz_file, key, &vec[0], {desc_length}, "a");

@@ -19,7 +19,6 @@ find_package(Boost REQUIRED COMPONENTS system filesystem)       # apt install li
 # Follow instructions given at
 # https://github.com/saravanabalagi/cnpy
 set(CNPY_ROOT "cnpy")
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 find_package(CNPY REQUIRED)
 
 include_directories(

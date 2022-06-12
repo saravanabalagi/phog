@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <cmath>
 #include"cnpy.h"
 #include <opencv2/opencv.hpp>
 #include <opencv2/xfeatures2d.hpp>
@@ -73,10 +74,18 @@ void getHistogram(const cv::Mat& edges, const cv::Mat& ors, const cv::Mat& mag, 
     }
 }
 
-void computePhog(const cv::Mat& image, cv::Mat& desc)
+int getDescSize(const int nbins, const int levels) {
+    int desc_size = 0;
+    for (int i=0; i<levels; i++)
+        desc_size += nbins * std::pow(4, i);
+    return desc_size;
+}
+
+void computePhog(const cv::Mat& image, cv::Mat& desc, const int nbins, const int levels)
 {
-    int nbins = 60; // 20 bins as default, increased to 60
-	int desc_size = nbins + 4 * nbins + 16 * nbins;
+    // int nbins = 60; // 20 bins as default, increased to 60
+	// int desc_size = nbins + 4 * nbins + 16 * nbins;
+    const int desc_size = getDescSize(nbins, levels);
 
     cv::Mat img = image;
     if (img.channels() > 1)
@@ -133,7 +142,7 @@ void computePhog(const cv::Mat& image, cv::Mat& desc)
     // printMatDetails(grad_o, "grad_o");
 
     // Creating the descriptor.
-    desc = cv::Mat::zeros(1, nbins + 4 * nbins + 16 * nbins, CV_32F);
+    desc = cv::Mat::zeros(1, desc_size, CV_32F);
     int width = image.cols;
     int height = image.rows;
 
@@ -142,29 +151,31 @@ void computePhog(const cv::Mat& image, cv::Mat& desc)
     getHistogram(edges, grad_o, grad_m, 0, 0, width, height, chist);
 
     // Level 1
-    chist = desc.colRange(nbins, 2 * nbins);
-    getHistogram(edges, grad_o, grad_m, 0, 0, width / 2, height / 2, chist);
+    if (levels > 1) {
+        chist = desc.colRange(nbins, 2 * nbins);
+        getHistogram(edges, grad_o, grad_m, 0, 0, width / 2, height / 2, chist);
 
-    chist = desc.colRange(2 * nbins, 3 * nbins);
-    getHistogram(edges, grad_o, grad_m, 0, width / 2, width / 2, height / 2, chist);
+        chist = desc.colRange(2 * nbins, 3 * nbins);
+        getHistogram(edges, grad_o, grad_m, 0, width / 2, width / 2, height / 2, chist);
 
-    chist = desc.colRange(3 * nbins, 4 * nbins);
-    getHistogram(edges, grad_o, grad_m, height / 2, 0, width / 2, height / 2, chist);
+        chist = desc.colRange(3 * nbins, 4 * nbins);
+        getHistogram(edges, grad_o, grad_m, height / 2, 0, width / 2, height / 2, chist);
 
-    chist = desc.colRange(4 * nbins, 5 * nbins);
-    getHistogram(edges, grad_o, grad_m, height / 2, width / 2, width / 2, height / 2, chist);
+        chist = desc.colRange(4 * nbins, 5 * nbins);
+        getHistogram(edges, grad_o, grad_m, height / 2, width / 2, width / 2, height / 2, chist);
+    }
 
     // Level 2
-    int wstep = width / 4;
-    int hstep = height / 4;
-    int binPos = 5; // Next free section in the histogram
-    for (int i = 0; i < 4; i++)
-    {
-        for (int j = 0; j < 4; j++)
-        {
-            chist = desc.colRange(binPos * nbins, (binPos + 1) * nbins);
-            getHistogram(edges, grad_o, grad_m, i * hstep, j * wstep, wstep, hstep, chist);
-            binPos++;
+    if (levels > 2) {
+        int wstep = width / 4;
+        int hstep = height / 4;
+        int binPos = 5; // Next free section in the histogram
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                chist = desc.colRange(binPos * nbins, (binPos + 1) * nbins);
+                getHistogram(edges, grad_o, grad_m, i * hstep, j * wstep, wstep, hstep, chist);
+                binPos++;
+            }
         }
     }
 
@@ -192,29 +203,30 @@ void getFilenames(const std::string& directory, std::vector<std::string>& filena
     }
 }
 
-void computePhogImg(std::string& imgfile, std::string& outfile) {
+void computePhogImg(std::string& imgfile, std::string& outfile, const int nbins, const int levels) {
     cv::Mat image = cv::imread(imgfile);
     printMatDetails(image, "Image");
     cv::Mat gdsc;
-    computePhog(image, gdsc);
+    computePhog(image, gdsc, nbins, levels);
     printMatDetails(gdsc, "Gdsc");
 
     writeMatToFile(gdsc, outfile);
     std::cout << "Successfully saved " << outfile << std::endl;
 }
 
-void computePhogImgdir(std::string& imgdir, std::string& outfile) {
+void computePhogImgdir(std::string& imgdir, std::string& outfile, const int nbins, const int levels) {
     std::vector<std::string> filenames;
     getFilenames(imgdir, filenames);
     std::cout << "Files found: " << filenames.size() << std::endl;
-    cv::Mat descs = cv::Mat::zeros(filenames.size(), 1260, CV_32F);
+    const int desc_size = getDescSize(nbins, levels);
+    cv::Mat descs = cv::Mat::zeros(filenames.size(), desc_size, CV_32F);
     int processed_count = 0;
 
     #pragma omp parallel for
     for (unsigned image_ind = 0; image_ind < filenames.size(); image_ind++) {
         cv::Mat image = cv::imread(filenames[image_ind]);
         cv::Mat desc;
-        computePhog(image, desc);
+        computePhog(image, desc, nbins, levels);
         desc.row(0).copyTo(descs.row(image_ind));
         processed_count++;
         if (processed_count % 500 == 0)
@@ -247,6 +259,14 @@ int main(int argc, char** argv) {
         .implicit_value(true);
     program.add_argument("-o", "--outfile")
         .help("path to output file");
+    program.add_argument("--nbins")
+        .scan<'i', int>()
+        .default_value(60)
+        .help("number of orientation bins");
+    program.add_argument("--levels")
+        .scan<'i', int>()
+        .default_value(3)
+        .help("number of levels in the pyramid");
 
     try {
         program.parse_args(argc, argv);
@@ -257,6 +277,9 @@ int main(int argc, char** argv) {
         std::exit(1);
     }
 
+    const int nbins = program.get<int>("nbins");
+    const int levels = program.get<int>("levels");
+
     std::string imgfile = program.get<std::string>("imgfile");
     if (program["--recursive"] == true) {
         std::cout << "Processing directory: " << imgfile << std::endl;
@@ -264,14 +287,14 @@ int main(int argc, char** argv) {
         if (auto fn = program.present("-o"))
             outfile = *fn;
         std::cout << "Output will be stored at " << outfile << std::endl;
-        computePhogImgdir(imgfile, outfile);
+        computePhogImgdir(imgfile, outfile, nbins, levels);
     } else {
         std::cout << "Processing image: " << imgfile  << std::endl;
         std::string outfile = "../data/desc_cpp.txt";
         if (auto fn = program.present("-o"))
             outfile = *fn;
         std::cout << "Output will be stored at " << outfile << std::endl;
-        computePhogImg(imgfile, outfile);
+        computePhogImg(imgfile, outfile, nbins, levels);
     }
 
     return 0;

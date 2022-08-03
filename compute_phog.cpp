@@ -2,6 +2,7 @@
 #include <fstream>
 #include <filesystem>
 #include <cmath>
+#include <omp.h>
 #include"cnpy.h"
 #include <opencv2/opencv.hpp>
 #include <opencv2/xfeatures2d.hpp>
@@ -207,10 +208,14 @@ void computePhogImg(std::string& imgfile, std::string& outfile, const int nbins,
     cv::Mat image = cv::imread(imgfile);
     printMatDetails(image, "Image");
     cv::Mat gdsc;
+    double startTime = omp_get_wtime();
     computePhog(image, gdsc, nbins, levels);
+    double endTime = omp_get_wtime();
+    double timeTaken = endTime - startTime;
     printMatDetails(gdsc, "Gdsc");
 
     writeMatToFile(gdsc, outfile);
+    std::cout << "Time Taken: " << timeTaken << std::endl;
     std::cout << "Successfully saved " << outfile << std::endl;
 }
 
@@ -220,22 +225,35 @@ void computePhogImgdir(std::string& imgdir, std::string& outfile, const int nbin
     std::cout << "Files found: " << filenames.size() << std::endl;
     const int desc_size = getDescSize(nbins, levels);
     cv::Mat descs = cv::Mat::zeros(filenames.size(), desc_size, CV_32F);
+    cv::Mat times = cv::Mat::zeros(filenames.size(), 1, CV_32F);
     int processed_count = 0;
+    double startTime = omp_get_wtime();
 
     #pragma omp parallel for
     for (unsigned image_ind = 0; image_ind < filenames.size(); image_ind++) {
         cv::Mat image = cv::imread(filenames[image_ind]);
         cv::Mat desc;
+        double startTime = omp_get_wtime();
         computePhog(image, desc, nbins, levels);
+        double endTime = omp_get_wtime();
+        double timeTaken = endTime - startTime;
+        times.at<float>(image_ind, 0) = timeTaken;
         desc.row(0).copyTo(descs.row(image_ind));
         processed_count++;
         if (processed_count % 500 == 0)
             std::cout << "Processed Count: " << processed_count << std::endl;
     }
 
+    double endTime = omp_get_wtime();
+    double totalTimeTaken = endTime - startTime;
+    std::cout << "Total time taken (parallel): " << totalTimeTaken << std::endl;
+    std::cout << "Avg time taken (parallel): " << totalTimeTaken / filenames.size() << std::endl;
+    std::cout << "Cumulative time taken: " << cv::sum(times).val[0] << std::endl;
+    std::cout << "Avg time taken per img: " << cv::mean(times).val[0] << std::endl;
     std::cout << "Descs computed: " << descs.size() << std::endl;
     
     long unsigned int desc_length = descs.cols;
+    boost::filesystem::create_directories(boost::filesystem::path(outfile).parent_path().string().c_str()); 
     std::filesystem::remove(outfile);
 
     for (unsigned image_ind = 0; image_ind < filenames.size(); image_ind++) {

@@ -18,7 +18,7 @@ find_package(Boost REQUIRED COMPONENTS system filesystem)       # apt install li
 
 # Follow instructions given at
 # https://github.com/saravanabalagi/cnpy
-set(CNPY_ROOT "cnpy")
+set(CNPY_ROOT "/libs/cnpy/dist")
 find_package(CNPY REQUIRED)
 
 include_directories(
